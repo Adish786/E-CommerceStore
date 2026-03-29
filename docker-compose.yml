@@ -1,0 +1,22 @@
+version: '3.8'
+services:
+  user-service:
+    build: ./backend/user-service
+    ports:
+      - "3001:3001"
+  product-service:
+    build: ./backend/product-service
+    ports:
+      - "3002:3002"
+  cart-service:
+    build: ./backend/cart-service
+    ports:
+      - "3003:3003"
+  order-service:
+    build: ./backend/order-service
+    ports:
+      - "3004:3004"
+  frontend:
+    build: ./frontend
+    ports:
+      - "80:80"
