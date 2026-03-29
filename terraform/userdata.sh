@@ -1,40 +1,82 @@
 #!/bin/bash
 set -e
 
-# Update & install Docker
-apt-get update -y
-apt-get install -y apt-transport-https ca-certificates curl software-properties-common gnupg lsb-release
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-apt-get update -y
-apt-get install -y docker-ce docker-ce-cli containerd.io
-usermod -aG docker ubuntu
+# Update system
+apt update -y
+apt upgrade -y
 
-# Enable Docker
-systemctl enable docker
+# Install Docker
+apt install -y docker.io
 systemctl start docker
+systemctl enable docker
 
-# Images to run
-user_image="${user_image}"
-product_image="${product_image}"
-cart_image="${cart_image}"
-order_image="${order_image}"
-frontend_image="${frontend_image}"
+# Install Docker Compose
+curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+chmod +x /usr/local/bin/docker-compose
 
-# Pull and run containers
-for item in \
-  "user:$user_image:3001" \
-  "product:$product_image:3002" \
-  "cart:$cart_image:3003" \
-  "order:$order_image:3004" \
-  "frontend:$frontend_image:80"; do
-  IFS=":" read -r name image port <<< "$item"
-  docker pull "$image"
-  docker rm -f "$name" 2>/dev/null || true
-  docker run -d --name "$name" -p "$port:$port" "$image"
-done
+# Wait for Docker daemon to be ready
+sleep 5
 
-# Static landing message for sanity check
-cat <<'EOF' > /var/www/html/index.html
-<html><body><h1>Frontend is Live</h1><p>E-CommerceStore deployed with Terraform + Docker</p></body></html>
-EOF
+# Pull MongoDB image
+docker pull mongo:7.0
+
+# Create directory for MongoDB data and scripts
+mkdir -p /opt/mongodb/data
+mkdir -p /opt/mongodb/init-scripts
+
+# Create MongoDB initialization script
+cat > /opt/mongodb/init-scripts/init-databases.sh << 'MONGODB_INIT_SCRIPT'
+${mongo_init_script}
+MONGODB_INIT_SCRIPT
+
+chmod +x /opt/mongodb/init-scripts/init-databases.sh
+
+# Start MongoDB container
+echo "Starting MongoDB container..."
+docker run -d \
+  --name mongodb \
+  --network host \
+  -v /opt/mongodb/data:/data/db \
+  -v /opt/mongodb/init-scripts:/docker-entrypoint-initdb.d \
+  -e MONGO_INITDB_ROOT_USERNAME=root \
+  -e MONGO_INITDB_ROOT_PASSWORD=root \
+  mongo:7.0 \
+  --bind_ip_all
+
+# Wait for MongoDB to start
+echo "Waiting for MongoDB to start..."
+sleep 10
+
+# Initialize databases by running init script inside container
+echo "Initializing databases..."
+docker exec mongodb /docker-entrypoint-initdb.d/init-databases.sh || {
+  echo "⚠️ Database initialization script failed, but continuing..."
+}
+
+# Pull Docker images
+echo "Pulling application images..."
+docker pull ${image_user}
+docker pull ${image_product}
+docker pull ${image_cart}
+docker pull ${image_order}
+docker pull ${image_frontend}
+
+# Wait a bit for MongoDB to stabilize
+sleep 5
+
+# Run containers with host network to access MongoDB on localhost
+echo "Starting application containers..."
+docker run -d --name user-service --network host ${image_user}
+docker run -d --name product-service --network host ${image_product}
+docker run -d --name cart-service --network host ${image_cart}
+docker run -d --name order-service --network host ${image_order}
+docker run -d --name frontend --network host ${image_frontend}
+
+echo "✅ All containers started! Waiting for services to initialize..."
+sleep 5
+
+# Verify containers are running
+echo "Container status:"
+docker ps -a
+
+echo "✅ Deployment complete!"
