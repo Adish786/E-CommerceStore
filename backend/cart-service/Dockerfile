@@ -3,6 +3,8 @@ WORKDIR /app
 
 COPY package*.json ./
 RUN npm install --production
+# Install curl (Alpine uses apk)
+RUN apk add --no-cache curl
 
 COPY . .
 EXPOSE 3003
