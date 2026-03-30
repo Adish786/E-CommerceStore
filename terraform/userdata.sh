@@ -17,9 +17,6 @@ chmod +x /usr/local/bin/docker-compose
 # Wait for Docker daemon to be ready
 sleep 5
 
-# Pull MongoDB image
-docker pull mongo:7.0
-
 # Create directory for MongoDB data and scripts
 mkdir -p /opt/mongodb/data
 mkdir -p /opt/mongodb/init-scripts
@@ -31,46 +28,81 @@ MONGODB_INIT_SCRIPT
 
 chmod +x /opt/mongodb/init-scripts/init-databases.sh
 
-# Start MongoDB container
-echo "Starting MongoDB container..."
-docker run -d \
-  --name mongodb \
-  --network host \
-  -v /opt/mongodb/data:/data/db \
-  -v /opt/mongodb/init-scripts:/docker-entrypoint-initdb.d \
-  -e MONGO_INITDB_ROOT_USERNAME=root \
-  -e MONGO_INITDB_ROOT_PASSWORD=root \
-  mongo:7.0 \
-  --bind_ip_all
-
-# Wait for MongoDB to start
-echo "Waiting for MongoDB to start..."
-sleep 10
-
-# Initialize databases by running init script inside container
-echo "Initializing databases..."
-docker exec mongodb /docker-entrypoint-initdb.d/init-databases.sh || {
-  echo "⚠️ Database initialization script failed, but continuing..."
-}
-
 # Pull Docker images
 echo "Pulling application images..."
-docker pull ${image_user}
-docker pull ${image_product}
-docker pull ${image_cart}
-docker pull ${image_order}
-docker pull ${image_frontend}
+docker pull adish786/user-service:latest
+docker pull adish786/product-service:latest
+docker pull adish786/cart-service:latest
+docker pull adish786/order-service:latest
+docker pull adish786/frontend:latest
 
-# Wait a bit for MongoDB to stabilize
-sleep 5
+# Create docker-compose.yml
+cat > /opt/docker-compose.yml << 'DOCKER_COMPOSE_EOF'
+version: '3.8'
 
-# Run containers with host network to access MongoDB on localhost
-echo "Starting application containers..."
-docker run -d --name user-service --network host ${image_user}
-docker run -d --name product-service --network host ${image_product}
-docker run -d --name cart-service --network host ${image_cart}
-docker run -d --name order-service --network host ${image_order}
-docker run -d --name frontend --network host ${image_frontend}
+services:
+  mongodb:
+    image: mongo:7.0
+    network_mode: host
+    volumes:
+      - /opt/mongodb/data:/data/db
+      - /opt/mongodb/init-scripts:/docker-entrypoint-initdb.d
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: root
+    command: --bind_ip_all
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  user-service:
+    image: adish786/user-service:latest
+    network_mode: host
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    restart: unless-stopped
+
+  product-service:
+    image: adish786/product-service:latest
+    network_mode: host
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    restart: unless-stopped
+
+  cart-service:
+    image: adish786/cart-service:latest
+    network_mode: host
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    restart: unless-stopped
+
+  order-service:
+    image: adish786/order-service:latest
+    network_mode: host
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    image: adish786/frontend:latest
+    network_mode: host
+    restart: unless-stopped
+DOCKER_COMPOSE_EOF
+
+# Run docker-compose
+echo "Starting application containers with docker-compose..."
+cd /opt
+docker-compose -f /opt/docker-compose.yml up -d
+
+# Check status
+docker-compose -f /opt/docker-compose.yml ps
+docker-compose -f /opt/docker-compose.yml logs --tail=50
 
 echo "✅ All containers started! Waiting for services to initialize..."
 sleep 5

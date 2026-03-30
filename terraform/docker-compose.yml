@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7.0
+    network_mode: host
+    volumes:
+      - /opt/mongodb/data:/data/db
+      - /opt/mongodb/init-scripts:/docker-entrypoint-initdb.d
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: root
+    command: --bind_ip_all
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  user-service:
+    image: adish786/user-service:latest
+    network_mode: host
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    restart: unless-stopped
+
+  product-service:
+    image: adish786/product-service:latest
+    network_mode: host
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    restart: unless-stopped
+
+  cart-service:
+    image: adish786/cart-service:latest
+    network_mode: host
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    restart: unless-stopped
+
+  order-service:
+    image: adish786/order-service:latest
+    network_mode: host
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    image: adish786/frontend:latest
+    network_mode: host
+    restart: unless-stopped

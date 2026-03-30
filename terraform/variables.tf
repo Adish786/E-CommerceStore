@@ -29,35 +29,35 @@ variable "private_key_path" {
 variable "dockerhub_user" {
   description = "DockerHub username for image tags"
   type        = string
-  default     = "your-dockerhub-username"
+  default     = "adish786"
 }
 
 variable "image_user" {
   description = "User service Docker image"
   type        = string
-  default     = "your-dockerhub-username/user-service:latest"
+  default     = "adish786/user-service:latest"
 }
 
 variable "image_product" {
   description = "Product service Docker image"
   type        = string
-  default     = "your-dockerhub-username/product-service:latest"
+  default     = "adish786/product-service:latest"
 }
 
 variable "image_cart" {
   description = "Cart service Docker image"
   type        = string
-  default     = "your-dockerhub-username/cart-service:latest"
+  default     = "adish786/cart-service:latest"
 }
 
 variable "image_order" {
   description = "Order service Docker image"
   type        = string
-  default     = "your-dockerhub-username/order-service:latest"
+  default     = "adish786/order-service:latest"
 }
 
 variable "image_frontend" {
   description = "Frontend service Docker image"
   type        = string
-  default     = "your-dockerhub-username/frontend:latest"
+  default     = "adish786/frontend:latest"
 }
